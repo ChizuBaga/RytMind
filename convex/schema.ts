@@ -69,4 +69,12 @@ export default defineSchema({
   })
     .index("by_period_type", ["periodType"])
     .index("by_generated_at", ["generatedAt"]),
+
+  // Financial Therapist chat messages
+  therapistMessages: defineTable({
+    role: v.string(), // "user" or "assistant"
+    content: v.string(), // Message content
+    timestamp: v.number(), // Unix timestamp
+    userId: v.optional(v.string()), // For multi-user support later
+  }).index("by_timestamp", ["timestamp"]),
 });

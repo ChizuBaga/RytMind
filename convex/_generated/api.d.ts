@@ -13,6 +13,7 @@ import type * as insights from "../insights.js";
 import type * as journalEntries from "../journalEntries.js";
 import type * as lindy from "../lindy.js";
 import type * as seed from "../seed.js";
+import type * as therapistChat from "../therapistChat.js";
 import type * as transactions from "../transactions.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   journalEntries: typeof journalEntries;
   lindy: typeof lindy;
   seed: typeof seed;
+  therapistChat: typeof therapistChat;
   transactions: typeof transactions;
 }>;
 

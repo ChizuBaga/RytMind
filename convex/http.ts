@@ -179,6 +179,52 @@ http.route({
   }),
 });
 
+// Webhook endpoint for Lindy Therapist chat responses
+http.route({
+  path: "/therapist-callback",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await request.json();
+      console.log("Therapist callback received:", JSON.stringify(body, null, 2));
+
+      // Extract the AI response from Lindy's callback
+      const aiResponse = body.response || body.message || body.content || body.data?.response;
+      
+      if (!aiResponse) {
+        console.error("No AI response found in callback:", body);
+        return new Response(
+          JSON.stringify({ error: "No AI response in payload" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Save the AI response to chat history
+      await ctx.runMutation(api.therapistChat.saveMessage, {
+        role: "assistant",
+        content: aiResponse,
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Response saved" }),
+        { 
+          status: 200, 
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          } 
+        }
+      );
+    } catch (error) {
+      console.error("Therapist callback error:", error);
+      return new Response(
+        JSON.stringify({ error: "Failed to process callback" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
 // Health check endpoint
 http.route({
   path: "/health",
