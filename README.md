@@ -10,7 +10,7 @@ cd rytmind
 npm install
 ```
 
-### Convex setup (each developer/judge does this once)
+### Convex setup
 1) Start Convex and log in / create project  
    ```bash
    npx convex dev
