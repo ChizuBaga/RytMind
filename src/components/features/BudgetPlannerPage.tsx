@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, Target, Plus, Trash2, TrendingDown, Sparkles, PiggyBank, AlertCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ArrowLeft, Target, Plus, Trash2, TrendingDown, Sparkles, PiggyBank, AlertCircle, Calendar, DollarSign, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -7,6 +7,13 @@ import { cn } from "@/lib/utils";
 
 interface BudgetPlannerPageProps {
   onBack: () => void;
+}
+
+interface BudgetSetup {
+  income: number;
+  savingsGoal: number;
+  years: number;
+  months: number;
 }
 
 interface Budget {
@@ -30,13 +37,194 @@ const savingTips = [
   { tip: "Use public transport", savings: "RM 80/month", icon: "🚌" },
 ];
 
+// Scrolling Picker Component
+const ScrollingPicker = ({ 
+  values, 
+  selectedIndex, 
+  onSelect, 
+  label 
+}: { 
+  values: number[]; 
+  selectedIndex: number; 
+  onSelect: (index: number) => void;
+  label: string;
+}) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startY, setStartY] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const itemHeight = 50;
+  const visibleItems = 3;
+  const containerHeight = itemHeight * visibleItems;
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = selectedIndex * itemHeight;
+    }
+  }, [selectedIndex, itemHeight]);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const scrollTop = scrollRef.current.scrollTop;
+    const index = Math.round(scrollTop / itemHeight);
+    const clampedIndex = Math.max(0, Math.min(index, values.length - 1));
+    onSelect(clampedIndex);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setStartY(e.clientY);
+    if (scrollRef.current) {
+      setScrollTop(scrollRef.current.scrollTop);
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !scrollRef.current) return;
+    const deltaY = e.clientY - startY;
+    scrollRef.current.scrollTop = scrollTop - deltaY;
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    snapToNearest();
+  };
+
+  const snapToNearest = () => {
+    if (!scrollRef.current) return;
+    const scrollTop = scrollRef.current.scrollTop;
+    const index = Math.round(scrollTop / itemHeight);
+    const clampedIndex = Math.max(0, Math.min(index, values.length - 1));
+    scrollRef.current.scrollTo({
+      top: clampedIndex * itemHeight,
+      behavior: 'smooth'
+    });
+    onSelect(clampedIndex);
+  };
+
+  // Touch support for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsDragging(true);
+    setStartY(e.touches[0].clientY);
+    if (scrollRef.current) {
+      setScrollTop(scrollRef.current.scrollTop);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || !scrollRef.current) return;
+    const deltaY = e.touches[0].clientY - startY;
+    scrollRef.current.scrollTop = scrollTop - deltaY;
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    snapToNearest();
+  };
+
+  return (
+    <div className="flex-1">
+      <p className="text-xs text-muted-foreground mb-2 text-center">{label}</p>
+      <div className="relative h-[150px] overflow-hidden">
+        {/* Selection Indicator */}
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[50px] border-y-2 border-primary/30 pointer-events-none z-10" />
+        
+        {/* Scrollable List */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
+          style={{
+            scrollSnapType: 'y mandatory',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {/* Top Spacer */}
+          <div style={{ height: `${itemHeight}px` }} />
+          
+          {/* Items */}
+          {values.map((value, index) => (
+            <div
+              key={index}
+              className={cn(
+                "h-[50px] flex items-center justify-center text-lg font-medium transition-colors snap-center",
+                index === selectedIndex
+                  ? "text-foreground scale-110"
+                  : "text-muted-foreground"
+              )}
+              style={{ height: `${itemHeight}px` }}
+            >
+              {value}
+            </div>
+          ))}
+          
+          {/* Bottom Spacer */}
+          <div style={{ height: `${itemHeight}px` }} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const BudgetPlannerPage = ({ onBack }: BudgetPlannerPageProps) => {
+  const [setupComplete, setSetupComplete] = useState(false);
+  const [setup, setSetup] = useState<BudgetSetup>({
+    income: 0,
+    savingsGoal: 0,
+    years: 0,
+    months: 1,
+  });
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
   const [savingsGoal, setSavingsGoal] = useState(500);
   const [currentSavings, setCurrentSavings] = useState(310);
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [newCategory, setNewCategory] = useState("");
   const [newLimit, setNewLimit] = useState("");
+
+  // Generate arrays for picker
+  const years = Array.from({ length: 11 }, (_, i) => i); // 0-10 years
+  const months = Array.from({ length: 12 }, (_, i) => i + 1); // 1-12 months
+
+  // Calculate monthly savings needed based on duration
+  const getMonthlySavingsNeeded = () => {
+    const totalMonths = setup.years * 12 + setup.months;
+    if (totalMonths === 0) return 0;
+    return setup.savingsGoal / totalMonths;
+  };
+
+  const getDurationDisplay = () => {
+    const parts: string[] = [];
+    if (setup.years > 0) {
+      parts.push(`${setup.years} year${setup.years !== 1 ? "s" : ""}`);
+    }
+    if (setup.months > 0) {
+      parts.push(`${setup.months} month${setup.months !== 1 ? "s" : ""}`);
+    }
+    return parts.length > 0 ? parts.join(", ") : "1 month";
+  };
+
+  const availableForBudget = setup.income - getMonthlySavingsNeeded();
+
+  const handleSetupSubmit = () => {
+    if (!setup.income || !setup.savingsGoal || setup.months === 0) {
+      alert("Please fill in all fields and select a duration.");
+      return;
+    }
+    if (availableForBudget < 0) {
+      alert("Your savings goal exceeds your income. Please adjust your goals.");
+      return;
+    }
+    setSavingsGoal(setup.savingsGoal);
+    setSetupComplete(true);
+  };
 
   const totalBudget = budgets.reduce((acc, b) => acc + b.limit, 0);
   const totalSpent = budgets.reduce((acc, b) => acc + b.spent, 0);
@@ -74,16 +262,135 @@ const BudgetPlannerPage = ({ onBack }: BudgetPlannerPageProps) => {
         </div>
       </div>
 
+      {/* Setup Step */}
+      {!setupComplete && (
+        <div className="space-y-4 animate-slide-up">
+          <div className="bg-card rounded-2xl shadow-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="w-5 h-5 text-primary" />
+              <h2 className="font-semibold text-foreground">Budget Setup</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-6">
+              Let's set up your budget by understanding your income and savings goals.
+            </p>
+
+            {/* Income Input */}
+            <div className="space-y-2 mb-4">
+              <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                <DollarSign className="w-4 h-4" />
+                Monthly Income (RM)
+              </label>
+              <Input
+                type="number"
+                placeholder="Enter your monthly income"
+                value={setup.income || ""}
+                onChange={(e) => setSetup({ ...setup, income: parseFloat(e.target.value) || 0 })}
+                className="w-full"
+              />
+            </div>
+
+            {/* Savings Goal Input */}
+            <div className="space-y-2 mb-4">
+              <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                <PiggyBank className="w-4 h-4" />
+                Savings Goal (RM)
+              </label>
+              <Input
+                type="number"
+                placeholder="How much do you want to save?"
+                value={setup.savingsGoal || ""}
+                onChange={(e) => setSetup({ ...setup, savingsGoal: parseFloat(e.target.value) || 0 })}
+                className="w-full"
+              />
+            </div>
+
+            {/* Duration Selection - Scrolling Picker */}
+            <div className="space-y-2 mb-6">
+              <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Duration for Saving
+              </label>
+              <div className="bg-card rounded-xl border border-border p-4">
+                <div className="flex gap-4 items-end">
+                  <ScrollingPicker
+                    values={years}
+                    selectedIndex={setup.years}
+                    onSelect={(index) => setSetup({ ...setup, years: index })}
+                    label="Years"
+                  />
+                  <ScrollingPicker
+                    values={months}
+                    selectedIndex={setup.months - 1}
+                    onSelect={(index) => setSetup({ ...setup, months: index + 1 })} 
+                    label="Months"
+                  />
+                </div>
+                <div className="mt-4 pt-4 border-t border-border text-center">
+                  <p className="text-sm text-muted-foreground">Selected Duration</p>
+                  <p className="text-lg font-semibold text-foreground mt-1">
+                    {getDurationDisplay()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary Preview */}
+            {setup.income > 0 && setup.savingsGoal > 0 && setup.months > 0 && (
+              <div className="mb-6 p-4 bg-muted/30 rounded-xl border border-border">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Budget Summary</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Monthly Income:</span>
+                    <span className="font-semibold text-foreground">RM {setup.income.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Monthly Savings Needed:</span>
+                    <span className="font-semibold text-success">RM {getMonthlySavingsNeeded().toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-border">
+                    <span className="text-muted-foreground">Available for Budget:</span>
+                    <span className="font-semibold text-foreground">RM {availableForBudget.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <Button
+              variant="primary"
+              onClick={handleSetupSubmit}
+              className="w-full"
+              disabled={!setup.income || !setup.savingsGoal || setup.months === 0}
+            >
+              Start Planning
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Budget Planner Content */}
+      {setupComplete && (
+        <>
+
       {/* Savings Goal Card */}
       <div className="bg-gradient-to-br from-primary to-accent rounded-2xl shadow-elevated p-5 text-primary-foreground animate-slide-up">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 rounded-full bg-primary-foreground/20 flex items-center justify-center">
             <PiggyBank className="w-6 h-6" />
           </div>
-          <div>
-            <p className="text-sm opacity-90">Monthly Savings Goal</p>
-            <p className="text-2xl font-bold">RM {savingsGoal}</p>
+          <div className="flex-1">
+            <p className="text-sm opacity-90">Savings Goal</p>
+            <p className="text-2xl font-bold">RM {setup.savingsGoal.toFixed(2)}</p>
+            <p className="text-xs opacity-80 mt-1">Target: {getDurationDisplay()}</p>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSetupComplete(false)}
+            className="text-primary-foreground hover:bg-primary-foreground/20"
+          >
+            Edit
+          </Button>
         </div>
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
@@ -110,7 +417,17 @@ const BudgetPlannerPage = ({ onBack }: BudgetPlannerPageProps) => {
             <span className="text-foreground font-medium">RM {totalRemaining}</span> left
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="p-3 bg-muted rounded-xl">
+            <p className="text-xs text-muted-foreground mb-1">Monthly Income</p>
+            <p className="text-lg font-bold text-foreground">RM {setup.income.toFixed(2)}</p>
+          </div>
+          <div className="p-3 bg-success/10 rounded-xl">
+            <p className="text-xs text-muted-foreground mb-1">Monthly Savings</p>
+            <p className="text-lg font-bold text-success">RM {getMonthlySavingsNeeded().toFixed(2)}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4 text-center pt-4 border-t border-border">
           <div className="p-3 bg-muted rounded-xl">
             <p className="text-xs text-muted-foreground mb-1">Total Budget</p>
             <p className="text-lg font-bold text-foreground">RM {totalBudget}</p>
@@ -221,6 +538,8 @@ const BudgetPlannerPage = ({ onBack }: BudgetPlannerPageProps) => {
           ))}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

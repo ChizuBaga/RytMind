@@ -13,7 +13,6 @@ interface RytMindDashboardProps {
 
 const features = [
   { id: "journalling", label: "Journalling", icon: Book, color: "bg-primary/10 text-primary" },
-  { id: "analysis", label: "Spending Analysis", icon: BarChart3, color: "bg-accent/10 text-accent" },
   { id: "assistant", label: "AI Therapist", icon: Headphones, color: "bg-primary/10 text-primary" },
   { id: "budget", label: "Budget Planner", icon: Target, color: "bg-accent/10 text-accent" },
 ];
@@ -53,44 +52,9 @@ const RytMindDashboard = ({ transactions, onFeatureClick, onReceiptUpload, onMan
         <p className="text-muted-foreground">Your AI-powered emotional spending insights</p>
       </div>
 
-      {/* Spending Overview Card */}
-      <div className="bg-card rounded-2xl shadow-card p-6 animate-slide-up">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Total Spending (This Month)</p>
-            <p className="text-3xl font-bold text-foreground">RM {totalSpending.toFixed(2)}</p>
-          </div>
-          <div className={cn(
-            "flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium",
-            percentageChange > 0 ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"
-          )}>
-            {percentageChange > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            <span>{percentageChange > 0 ? "+" : ""}{percentageChange}%</span>
-          </div>
-        </div>
+      
 
-        {/* Spending Distribution */}
-        <div className="space-y-3">
-          <p className="text-sm font-medium text-muted-foreground">Emotional Distribution</p>
-          <div className="flex h-3 rounded-full overflow-hidden">
-            {spendingData.map((item, index) => (
-              <div
-                key={item.category}
-                className={cn("h-full", item.color)}
-                style={{ width: `${item.percentage}%` }}
-              />
-            ))}
-          </div>
-          <div className="flex justify-between text-xs">
-            {spendingData.map((item) => (
-              <div key={item.category} className="flex items-center gap-1.5">
-                <div className={cn("w-2 h-2 rounded-full", item.color)} />
-                <span className="text-muted-foreground">{item.category} ({item.percentage}%)</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+       
 
       {/* Feature Buttons Grid */}
       <div className="grid grid-cols-2 gap-3 animate-slide-up" style={{ animationDelay: "100ms" }}>
@@ -163,7 +127,7 @@ const RytMindDashboard = ({ transactions, onFeatureClick, onReceiptUpload, onMan
           <div className="space-y-3">
             {processedTransactions.map((transaction) => {
               const isExpanded = expandedTransactions.has(transaction.id);
-              const hasItems = transaction.items && transaction.items.length > 0;
+              const hasItems = !!(transaction.items && Array.isArray(transaction.items) && transaction.items.length > 0);
               
               // Get unique categories from items, or fall back to transaction category
               const categories = hasItems && transaction.items
@@ -243,30 +207,34 @@ const RytMindDashboard = ({ transactions, onFeatureClick, onReceiptUpload, onMan
                     <div className="border-t border-border px-4 py-3 bg-muted/30">
                       <p className="text-xs font-medium text-muted-foreground mb-2">Items Breakdown</p>
                       <div className="space-y-2">
-                        {transaction.items.map((item, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between py-2 border-b border-border/50 last:border-0"
-                          >
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-foreground">{item.name}</p>
-                              <span className={cn(
-                                "text-xs px-2 py-0.5 rounded-full",
-                                item.category === "Food" && "bg-accent/10 text-accent",
-                                item.category === "Shopping" && "bg-primary/10 text-primary",
-                                item.category === "Transport" && "bg-secondary/10 text-secondary-foreground",
-                                item.category === "Entertainment" && "bg-destructive/10 text-destructive",
-                                item.category === "Bills" && "bg-muted text-muted-foreground",
-                                item.category === "Others" && "bg-muted text-muted-foreground",
-                              )}>
-                                {item.category}
-                              </span>
+                        {transaction.items && transaction.items.length > 0 ? (
+                          transaction.items.map((item, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between py-2 border-b border-border/50 last:border-0"
+                            >
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-foreground">{item.name}</p>
+                                <span className={cn(
+                                  "text-xs px-2 py-0.5 rounded-full mt-1 inline-block",
+                                  item.category === "Food" && "bg-accent/10 text-accent",
+                                  item.category === "Shopping" && "bg-primary/10 text-primary",
+                                  item.category === "Transport" && "bg-secondary/10 text-secondary-foreground",
+                                  item.category === "Entertainment" && "bg-destructive/10 text-destructive",
+                                  item.category === "Bills" && "bg-muted text-muted-foreground",
+                                  item.category === "Others" && "bg-muted text-muted-foreground",
+                                )}>
+                                  {item.category}
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold text-foreground ml-4">
+                                RM {item.price.toFixed(2)}
+                              </p>
                             </div>
-                            <p className="text-sm font-semibold text-foreground ml-4">
-                              RM {item.price.toFixed(2)}
-                            </p>
-                          </div>
-                        ))}
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No items found</p>
+                        )}
                       </div>
                     </div>
                   )}

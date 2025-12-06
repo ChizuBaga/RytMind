@@ -359,7 +359,7 @@ const JournallingPage = ({ onBack, transactions }: JournallingPageProps) => {
                   onClick={handleContinueFromSelection}
                   className="w-full"
                 >
-                  Continue to Prompts
+                  Next
                 </Button>
               </div>
             )}
@@ -376,17 +376,71 @@ const JournallingPage = ({ onBack, transactions }: JournallingPageProps) => {
               <h2 className="font-semibold text-foreground">Journal Entry</h2>
             </div>
 
-            {/* Selected Transactions Summary */}
+            {/* Selected Transactions Summary with Item Breakdown */}
             {selectedTransactions.size > 0 && (
-              <div className="mb-4 p-3 bg-muted/30 rounded-xl">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Journaling about:</p>
-                <div className="space-y-1">
-                  {getSelectedTransactionsList().map((transaction) => (
-                    <div key={transaction.id} className="text-sm text-foreground">
-                      • {transaction.merchant} - RM {Math.abs(transaction.amount).toFixed(2)}
+              <div className="mb-4 space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">Journaling about:</p>
+                {getSelectedTransactionsList().map((transaction) => {
+                  const hasItems = transaction.items && transaction.items.length > 0;
+                  return (
+                    <div key={transaction.id} className="bg-muted/30 rounded-xl p-3 border border-border">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{transaction.merchant}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {transaction.date} • RM {Math.abs(transaction.amount).toFixed(2)}
+                          </p>
+                        </div>
+                        {transaction.category && (
+                          <span className={cn(
+                            "text-xs px-2 py-0.5 rounded-full",
+                            transaction.category === "Food" && "bg-accent/10 text-accent",
+                            transaction.category === "Shopping" && "bg-primary/10 text-primary",
+                            transaction.category === "Transport" && "bg-secondary/10 text-secondary-foreground",
+                            transaction.category === "Entertainment" && "bg-destructive/10 text-destructive",
+                            transaction.category === "Bills" && "bg-muted text-muted-foreground",
+                            (!transaction.category || transaction.category === "Others") && "bg-muted text-muted-foreground",
+                          )}>
+                            {transaction.category}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Item Breakdown */}
+                      {hasItems && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Items Breakdown</p>
+                          <div className="space-y-2">
+                            {transaction.items.map((item, index) => (
+                              <div
+                                key={index}
+                                className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0"
+                              >
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium text-foreground">{item.name}</p>
+                                  <span className={cn(
+                                    "text-xs px-1.5 py-0.5 rounded-full",
+                                    item.category === "Food" && "bg-accent/10 text-accent",
+                                    item.category === "Shopping" && "bg-primary/10 text-primary",
+                                    item.category === "Transport" && "bg-secondary/10 text-secondary-foreground",
+                                    item.category === "Entertainment" && "bg-destructive/10 text-destructive",
+                                    item.category === "Bills" && "bg-muted text-muted-foreground",
+                                    item.category === "Others" && "bg-muted text-muted-foreground",
+                                  )}>
+                                    {item.category}
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-foreground ml-2">
+                                  RM {item.price.toFixed(2)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             )}
 
