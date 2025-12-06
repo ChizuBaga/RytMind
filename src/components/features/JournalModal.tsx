@@ -92,8 +92,12 @@ const JournalModal = ({ transactionId, onClose, onComplete }: JournalModalProps)
             <Textarea
               value={journal}
               onChange={(e) => setJournal(e.target.value)}
-              placeholder="How did this spending make you feel? Write your thoughts here..."
-              className="min-h-[150px] mb-4 resize-none"
+              placeholder="Start writing here...
+
+How did this purchase make you feel?
+Was it planned or spontaneous?
+Would you make the same choice again?"
+              className="min-h-[180px] mb-4 resize-none text-base leading-relaxed"
             />
 
             {/* Submit Button */}

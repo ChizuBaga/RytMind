@@ -12,8 +12,8 @@ interface RytMindDashboardProps {
 
 const features = [
   { id: "journalling", label: "Journalling", icon: Book, color: "bg-primary/10 text-primary" },
-  { id: "analysis", label: "Spending Analysis", icon: BarChart3, color: "bg-secondary/10 text-secondary-foreground" },
-  { id: "assistant", label: "Financial Assistant", icon: Headphones, color: "bg-accent/10 text-accent" },
+  { id: "analysis", label: "Spending Analysis", icon: BarChart3, color: "bg-success/10 text-success" },
+  { id: "assistant", label: "AI Therapist", icon: Headphones, color: "bg-primary/10 text-primary" },
   { id: "budget", label: "Budget Planner", icon: Target, color: "bg-success/10 text-success" },
 ];
 

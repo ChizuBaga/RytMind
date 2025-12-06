@@ -6,6 +6,10 @@ import TransactionsPage, { type Transaction } from "@/components/features/Transa
 import RytMindDashboard from "@/components/features/RytMindDashboard";
 import ReceiptUploadModal from "@/components/features/ReceiptUploadModal";
 import JournalModal from "@/components/features/JournalModal";
+import SpendingAnalysisPage from "@/components/features/SpendingAnalysisPage";
+import BudgetPlannerPage from "@/components/features/BudgetPlannerPage";
+import JournallingPage from "@/components/features/JournallingPage";
+import FinancialTherapistPage from "@/components/features/FinancialTherapistPage";
 import { useToast } from "@/hooks/use-toast";
 
 const initialTransactions: Transaction[] = [
@@ -18,12 +22,20 @@ const initialTransactions: Transaction[] = [
   { id: "7", merchant: "Uniqlo", date: "Dec 1, 2024", time: "4:45 PM", category: "Shopping", amount: -189.00, processed: true, emotion: "Planned", emotionEmoji: "📝" },
 ];
 
+type ActiveView = "payments" | "transactions" | "rytmind" | "analysis" | "budget" | "journalling" | "therapist";
+
 const Index = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"payments" | "transactions" | "rytmind">("payments");
+  const [activeView, setActiveView] = useState<ActiveView>("payments");
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
   const [receiptModalId, setReceiptModalId] = useState<string | null>(null);
   const [journalModalId, setJournalModalId] = useState<string | null>(null);
+
+  const handleTabChange = (tab: "payments" | "transactions" | "rytmind") => {
+    setActiveTab(tab);
+    setActiveView(tab);
+  };
 
   const handlePaymentSuccess = (recipient: string, amount: number) => {
     const newTransaction: Transaction = {
@@ -35,7 +47,7 @@ const Index = () => {
       amount: -amount,
     };
     setTransactions((prev) => [newTransaction, ...prev]);
-    setActiveTab("transactions");
+    handleTabChange("transactions");
     toast({
       title: "Payment Complete",
       description: `RM ${amount.toFixed(2)} sent to ${recipient}`,
@@ -71,22 +83,45 @@ const Index = () => {
   };
 
   const handleFeatureClick = (feature: string) => {
-    toast({
-      title: feature.charAt(0).toUpperCase() + feature.slice(1),
-      description: "This feature is coming soon!",
-    });
+    switch (feature) {
+      case "journalling":
+        setActiveView("journalling");
+        break;
+      case "analysis":
+        setActiveView("analysis");
+        break;
+      case "assistant":
+        setActiveView("therapist");
+        break;
+      case "budget":
+        setActiveView("budget");
+        break;
+      default:
+        toast({
+          title: feature.charAt(0).toUpperCase() + feature.slice(1),
+          description: "This feature is coming soon!",
+        });
+    }
   };
+
+  const handleBackToRytMind = () => {
+    setActiveView("rytmind");
+  };
+
+  // Determine if we should show the navbar (hide for sub-pages)
+  const showNavbar = ["payments", "transactions", "rytmind"].includes(activeView);
+  const showFAB = activeView !== "therapist";
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
+      {showNavbar && <Navbar activeTab={activeTab} onTabChange={handleTabChange} />}
 
       <main className="flex-1 max-w-lg mx-auto w-full flex flex-col">
-        {activeTab === "payments" && (
+        {activeView === "payments" && (
           <PaymentsPage onPaymentSuccess={handlePaymentSuccess} />
         )}
 
-        {activeTab === "transactions" && (
+        {activeView === "transactions" && (
           <TransactionsPage
             transactions={transactions}
             onReceiptUpload={setReceiptModalId}
@@ -94,7 +129,7 @@ const Index = () => {
           />
         )}
 
-        {activeTab === "rytmind" && (
+        {activeView === "rytmind" && (
           <RytMindDashboard
             transactions={transactions}
             onFeatureClick={handleFeatureClick}
@@ -102,9 +137,25 @@ const Index = () => {
             onManualEntry={setJournalModalId}
           />
         )}
+
+        {activeView === "analysis" && (
+          <SpendingAnalysisPage onBack={handleBackToRytMind} />
+        )}
+
+        {activeView === "budget" && (
+          <BudgetPlannerPage onBack={handleBackToRytMind} />
+        )}
+
+        {activeView === "journalling" && (
+          <JournallingPage onBack={handleBackToRytMind} />
+        )}
+
+        {activeView === "therapist" && (
+          <FinancialTherapistPage onBack={handleBackToRytMind} />
+        )}
       </main>
 
-      <FloatingChatButton />
+      {showFAB && <FloatingChatButton />}
 
       {/* Modals */}
       {receiptModalId && (
