@@ -24,8 +24,10 @@ npm install
    Replace `<your-deployment>` with the name shown after `npx convex dev`.
 
 ### Lindy AI (already wired for you)
-- The repo keeps shared Lindy webhook URLs in `convex/lindy.ts` (`LINDY_URLS`), so judges do **not** need to create Lindy agents.
+- The repo keeps shared Lindy webhook URLs in `convex/lindy.ts` (`LINDY_URLS`)
 - The app sends data to those agents; Lindy posts results back to **your** Convex site via `SITE_URL/lindy-webhook`.
+[[!NOTE]]
+> lindy.ts will be remove tomorrow after 10AM
 
 ### Run the app
 ```bash
