@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, CheckCircle, Sparkles } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, CheckCircle, Sparkles, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -13,9 +13,97 @@ const JournalModal = ({ transactionId, onClose, onComplete }: JournalModalProps)
   const [journal, setJournal] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    try {
+      const SpeechRecognition = 
+        (window as any).SpeechRecognition || 
+        (window as any).webkitSpeechRecognition ||
+        (window as any).mozSpeechRecognition ||
+        (window as any).msSpeechRecognition;
+      
+      if (SpeechRecognition) {
+        setIsSupported(true);
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          let interimTranscript = "";
+          let finalTranscript = "";
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + " ";
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            setJournal((prev) => prev + (prev && !prev.endsWith(" ") ? " " : "") + finalTranscript);
+          }
+        };
+
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+          console.error("Speech recognition error:", event.error);
+          setIsRecording(false);
+        };
+
+        recognition.onend = () => {
+          setIsRecording(false);
+        };
+
+        recognitionRef.current = recognition;
+      } else {
+        console.log("Speech Recognition API not supported in this browser");
+      }
+    } catch (error) {
+      console.error("Error initializing speech recognition:", error);
+      setIsSupported(false);
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          // Ignore errors when stopping
+        }
+      }
+    };
+  }, []);
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) return;
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+      } catch (error) {
+        console.error("Failed to start recording:", error);
+      }
+    }
+  };
 
   const handleSubmit = async () => {
     if (!journal.trim()) return;
+    
+    // Stop recording if active
+    if (isRecording && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
     
     setIsSubmitting(true);
     
@@ -32,6 +120,15 @@ const JournalModal = ({ transactionId, onClose, onComplete }: JournalModalProps)
     }, 1500);
   };
 
+  const handleClose = () => {
+    // Stop recording if active
+    if (isRecording && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+    onClose();
+  };
+
   const prompts = [
     "Was this a planned purchase?",
     "How did you feel before buying?",
@@ -42,12 +139,12 @@ const JournalModal = ({ transactionId, onClose, onComplete }: JournalModalProps)
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div 
         className="absolute inset-0 bg-foreground/20 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={handleClose}
       />
       <div className="relative w-full max-w-md bg-card rounded-2xl shadow-elevated p-6 animate-scale-in">
         {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
         >
           <X className="w-5 h-5" />
@@ -88,17 +185,49 @@ const JournalModal = ({ transactionId, onClose, onComplete }: JournalModalProps)
               ))}
             </div>
 
-            {/* Textarea */}
-            <Textarea
-              value={journal}
-              onChange={(e) => setJournal(e.target.value)}
-              placeholder="Start writing here...
+            {/* Textarea with Voice Input */}
+            <div className="relative mb-4">
+              <Textarea
+                value={journal}
+                onChange={(e) => setJournal(e.target.value)}
+                placeholder="Start writing here...
 
 How did this purchase make you feel?
 Was it planned or spontaneous?
 Would you make the same choice again?"
-              className="min-h-[180px] mb-4 resize-none text-base leading-relaxed"
-            />
+                className="min-h-[180px] resize-none text-base leading-relaxed pr-12"
+              />
+              <button
+                onClick={toggleRecording}
+                disabled={!isSupported}
+                className={`absolute bottom-3 right-3 p-2 rounded-full transition-all ${
+                  isRecording
+                    ? "bg-destructive text-destructive-foreground animate-pulse"
+                    : isSupported
+                    ? "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                    : "bg-muted/50 text-muted-foreground/50 cursor-not-allowed"
+                }`}
+                title={
+                  !isSupported
+                    ? "Voice input not supported in this browser"
+                    : isRecording
+                    ? "Stop recording"
+                    : "Start voice input"
+                }
+              >
+                {isRecording ? (
+                  <MicOff className="w-5 h-5" />
+                ) : (
+                  <Mic className="w-5 h-5" />
+                )}
+              </button>
+              {isRecording && (
+                <div className="absolute top-3 right-3 flex items-center gap-2 px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+                  <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                  Recording...
+                </div>
+              )}
+            </div>
 
             {/* Submit Button */}
             <Button

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, Book, Plus, Calendar, Sparkles, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ArrowLeft, Book, Plus, Calendar, Sparkles, ChevronRight, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -46,9 +46,97 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [newContent, setNewContent] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    try {
+      const SpeechRecognition = 
+        (window as any).SpeechRecognition || 
+        (window as any).webkitSpeechRecognition ||
+        (window as any).mozSpeechRecognition ||
+        (window as any).msSpeechRecognition;
+      
+      if (SpeechRecognition) {
+        setIsSupported(true);
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          let interimTranscript = "";
+          let finalTranscript = "";
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + " ";
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            setNewContent((prev) => prev + (prev && !prev.endsWith(" ") ? " " : "") + finalTranscript);
+          }
+        };
+
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+          console.error("Speech recognition error:", event.error);
+          setIsRecording(false);
+        };
+
+        recognition.onend = () => {
+          setIsRecording(false);
+        };
+
+        recognitionRef.current = recognition;
+      } else {
+        console.log("Speech Recognition API not supported in this browser");
+      }
+    } catch (error) {
+      console.error("Error initializing speech recognition:", error);
+      setIsSupported(false);
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          // Ignore errors when stopping
+        }
+      }
+    };
+  }, []);
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) return;
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+      } catch (error) {
+        console.error("Failed to start recording:", error);
+      }
+    }
+  };
 
   const handleSaveEntry = () => {
     if (!newContent.trim()) return;
+    
+    // Stop recording if active
+    if (isRecording && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
     
     const newEntry: JournalEntry = {
       id: Date.now().toString(),
@@ -61,6 +149,17 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
     setEntries([newEntry, ...entries]);
     setNewContent("");
     setShowNewEntry(false);
+    setSelectedPrompt(null);
+  };
+
+  const handleCancelEntry = () => {
+    // Stop recording if active
+    if (isRecording && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+    setShowNewEntry(false);
+    setNewContent("");
     setSelectedPrompt(null);
   };
 
@@ -116,23 +215,51 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
             <Book className="w-5 h-5 text-primary" />
             <h2 className="font-semibold text-foreground">New Entry</h2>
           </div>
-          <Textarea
-            value={newContent}
-            onChange={(e) => setNewContent(e.target.value)}
-            placeholder="Start writing your thoughts here... 
+          <div className="relative mb-4">
+            <Textarea
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              placeholder="Start writing your thoughts here... 
 
 How did today's spending make you feel? What emotions were behind your purchases? Are there patterns you're noticing?"
-            className="min-h-[200px] mb-4 resize-none text-base leading-relaxed"
-          />
+              className="min-h-[200px] resize-none text-base leading-relaxed pr-12"
+            />
+            <button
+              onClick={toggleRecording}
+              disabled={!isSupported}
+              className={`absolute bottom-3 right-3 p-2 rounded-full transition-all ${
+                isRecording
+                  ? "bg-destructive text-destructive-foreground animate-pulse"
+                  : isSupported
+                  ? "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                  : "bg-muted/50 text-muted-foreground/50 cursor-not-allowed"
+              }`}
+              title={
+                !isSupported
+                  ? "Voice input not supported in this browser"
+                  : isRecording
+                  ? "Stop recording"
+                  : "Start voice input"
+              }
+            >
+              {isRecording ? (
+                <MicOff className="w-5 h-5" />
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
+            </button>
+            {isRecording && (
+              <div className="absolute top-3 right-3 flex items-center gap-2 px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+                <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                Recording...
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button variant="primary" onClick={handleSaveEntry} className="flex-1">
               Save Entry
             </Button>
-            <Button variant="ghost" onClick={() => {
-              setShowNewEntry(false);
-              setNewContent("");
-              setSelectedPrompt(null);
-            }}>
+            <Button variant="ghost" onClick={handleCancelEntry}>
               Cancel
             </Button>
           </div>
