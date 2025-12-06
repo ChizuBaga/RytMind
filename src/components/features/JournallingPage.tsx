@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Book, Plus, Calendar, Sparkles, ChevronRight, Mic, MicOff, Check, X } from "lucide-react";
+import { ArrowLeft, Book, Plus, Calendar, Sparkles, ChevronRight, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { Transaction } from "./TransactionsPage";
 
 interface JournallingPageProps {
   onBack: () => void;
-  transactions: Transaction[];
 }
 
 interface JournalEntry {
@@ -16,8 +14,6 @@ interface JournalEntry {
   content: string;
   mood: string;
   moodEmoji: string;
-  emotion: string;
-  transactionIds?: string[];
 }
 
 const sampleEntries: JournalEntry[] = [
@@ -27,7 +23,6 @@ const sampleEntries: JournalEntry[] = [
     content: "Spent RM 245 on Lazada today. I think it was impulsive - I didn't really need those items but the sale was tempting...",
     mood: "Reflective",
     moodEmoji: "🤔",
-    emotion: "Anxious",
   },
   {
     id: "2",
@@ -35,51 +30,25 @@ const sampleEntries: JournalEntry[] = [
     content: "Paid the electricity bill today. Feeling responsible about keeping up with essentials.",
     mood: "Content",
     moodEmoji: "😊",
-    emotion: "Satisfied",
   },
 ];
 
-const emotions = [
-  { id: "happy", label: "Happy", emoji: "😊", color: "bg-success/10 text-success" },
-  { id: "anxious", label: "Anxious", emoji: "😰", color: "bg-destructive/10 text-destructive" },
-  { id: "excited", label: "Excited", emoji: "🤩", color: "bg-accent/10 text-accent" },
-  { id: "guilty", label: "Guilty", emoji: "😔", color: "bg-muted text-muted-foreground" },
-  { id: "satisfied", label: "Satisfied", emoji: "😌", color: "bg-primary/10 text-primary" },
-  { id: "stressed", label: "Stressed", emoji: "😫", color: "bg-destructive/10 text-destructive" },
-  { id: "relieved", label: "Relieved", emoji: "😮‍💨", color: "bg-success/10 text-success" },
-  { id: "regretful", label: "Regretful", emoji: "😞", color: "bg-muted text-muted-foreground" },
-];
-
 const writingPrompts = [
-  "What triggered this purchase?",
-  "How did you feel before buying?",
-  "How do you feel now about this purchase?",
-  "Was this purchase necessary or impulsive?",
-  "What would you do differently next time?",
-  "How does this spending align with your goals?",
+  "What triggered my last impulse purchase?",
+  "How do I feel about my spending this week?",
+  "What are 3 things I'm grateful I didn't buy?",
+  "What's one financial goal I'm proud of?",
+  "When do I tend to spend emotionally?",
 ];
 
-type JournalStep = "select" | "entry";
-
-const JournallingPage = ({ onBack, transactions }: JournallingPageProps) => {
+const JournallingPage = ({ onBack }: JournallingPageProps) => {
   const [entries, setEntries] = useState<JournalEntry[]>(sampleEntries);
-  const [currentStep, setCurrentStep] = useState<JournalStep>("select");
-  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
-  const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
+  const [showNewEntry, setShowNewEntry] = useState(false);
   const [newContent, setNewContent] = useState("");
+  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-
-  // Group transactions by date
-  const transactionsByDate = transactions.reduce((acc, transaction) => {
-    const date = transaction.date;
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(transaction);
-    return acc;
-  }, {} as Record<string, Transaction[]>);
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -160,36 +129,8 @@ const JournallingPage = ({ onBack, transactions }: JournallingPageProps) => {
     }
   };
 
-  const toggleTransactionSelection = (transactionId: string) => {
-    setSelectedTransactions((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(transactionId)) {
-        newSet.delete(transactionId);
-      } else {
-        newSet.add(transactionId);
-      }
-      return newSet;
-    });
-  };
-
-
-  const handleContinueFromSelection = () => {
-    if (selectedTransactions.size === 0) {
-      alert("Please select at least one transaction to journal about.");
-      return;
-    }
-    setCurrentStep("entry");
-  };
-
   const handleSaveEntry = () => {
-    if (!selectedEmotion) {
-      alert("Please select an emotion for this journal entry.");
-      return;
-    }
-    if (!newContent.trim()) {
-      alert("Please write something about your feelings.");
-      return;
-    }
+    if (!newContent.trim()) return;
     
     // Stop recording if active
     if (isRecording && recognitionRef.current) {
@@ -197,23 +138,18 @@ const JournallingPage = ({ onBack, transactions }: JournallingPageProps) => {
       setIsRecording(false);
     }
     
-    const emotionData = emotions.find(e => e.id === selectedEmotion);
     const newEntry: JournalEntry = {
       id: Date.now().toString(),
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       content: newContent,
-      mood: emotionData?.label || "Reflective",
-      moodEmoji: emotionData?.emoji || "💭",
-      emotion: emotionData?.label || "Reflective",
-      transactionIds: Array.from(selectedTransactions),
+      mood: "Reflective",
+      moodEmoji: "💭",
     };
     
     setEntries([newEntry, ...entries]);
     setNewContent("");
-    setSelectedEmotion(null);
-    setNewContent("");
-    setSelectedTransactions(new Set());
-    setCurrentStep("select");
+    setShowNewEntry(false);
+    setSelectedPrompt(null);
   };
 
   const handleCancelEntry = () => {
@@ -222,15 +158,15 @@ const JournallingPage = ({ onBack, transactions }: JournallingPageProps) => {
       recognitionRef.current.stop();
       setIsRecording(false);
     }
-    setCurrentStep("select");
+    setShowNewEntry(false);
     setNewContent("");
-    setSelectedEmotion(null);
-    setNewContent("");
-    setSelectedTransactions(new Set());
+    setSelectedPrompt(null);
   };
 
-  const getSelectedTransactionsList = () => {
-    return transactions.filter(t => selectedTransactions.has(t.id));
+  const handlePromptClick = (prompt: string) => {
+    setSelectedPrompt(prompt);
+    setNewContent(prompt + "\n\n");
+    setShowNewEntry(true);
   };
 
   return (
@@ -244,12 +180,10 @@ const JournallingPage = ({ onBack, transactions }: JournallingPageProps) => {
           <h1 className="text-xl font-bold text-foreground">Journalling</h1>
           <p className="text-sm text-muted-foreground">Reflect on your spending</p>
         </div>
-        {currentStep === "select" && (
-          <Button variant="primary" size="sm" onClick={() => setCurrentStep("select")}>
-            <Plus className="w-4 h-4 mr-1" />
-            New Entry
-          </Button>
-        )}
+        <Button variant="primary" size="sm" onClick={() => setShowNewEntry(true)}>
+          <Plus className="w-4 h-4 mr-1" />
+          New
+        </Button>
       </div>
 
       {/* Step 1: Transaction Selection */}
@@ -476,99 +410,93 @@ const JournallingPage = ({ onBack, transactions }: JournallingPageProps) => {
               </div>
             </div>
 
-            {/* Text Area */}
-            <div className="relative mb-4">
-              <Textarea
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                placeholder={`Write about your feelings and thoughts...
+      {/* New Entry Form */}
+      {showNewEntry && (
+        <div className="bg-card rounded-2xl shadow-card p-5 animate-scale-in">
+          <div className="flex items-center gap-2 mb-4">
+            <Book className="w-5 h-5 text-primary" />
+            <h2 className="font-semibold text-foreground">New Entry</h2>
+          </div>
+          <div className="relative mb-4">
+            <Textarea
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              placeholder="Start writing your thoughts here... 
 
-Writing prompts to guide your reflection:
-• What triggered this purchase?
-• How did you feel before buying?
-• How do you feel now about this purchase?
-• Was this purchase necessary or impulsive?
-• What would you do differently next time?
-• How does this spending align with your goals?`}
-                className="min-h-[200px] resize-none text-base leading-relaxed pr-12"
-              />
-              <button
-                onClick={toggleRecording}
-                disabled={!isSupported}
-                className={cn(
-                  "absolute bottom-3 right-3 p-2 rounded-full transition-all",
-                  isRecording
-                    ? "bg-destructive text-destructive-foreground animate-pulse"
-                    : isSupported
-                    ? "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                    : "bg-muted/50 text-muted-foreground/50 cursor-not-allowed"
-                )}
-                title={
-                  !isSupported
-                    ? "Voice input not supported in this browser"
-                    : isRecording
-                    ? "Stop recording"
-                    : "Start voice input"
-                }
-              >
-                {isRecording ? (
-                  <MicOff className="w-5 h-5" />
-                ) : (
-                  <Mic className="w-5 h-5" />
-                )}
-              </button>
-              {isRecording && (
-                <div className="absolute top-3 right-3 flex items-center gap-2 px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
-                  <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                  Recording...
-                </div>
+How did today's spending make you feel? What emotions were behind your purchases? Are there patterns you're noticing?"
+              className="min-h-[200px] resize-none text-base leading-relaxed pr-12"
+            />
+            <button
+              onClick={toggleRecording}
+              disabled={!isSupported}
+              className={`absolute bottom-3 right-3 p-2 rounded-full transition-all ${
+                isRecording
+                  ? "bg-destructive text-destructive-foreground animate-pulse"
+                  : isSupported
+                  ? "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                  : "bg-muted/50 text-muted-foreground/50 cursor-not-allowed"
+              }`}
+              title={
+                !isSupported
+                  ? "Voice input not supported in this browser"
+                  : isRecording
+                  ? "Stop recording"
+                  : "Start voice input"
+              }
+            >
+              {isRecording ? (
+                <MicOff className="w-5 h-5" />
+              ) : (
+                <Mic className="w-5 h-5" />
               )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-2">
-              <Button variant="primary" onClick={handleSaveEntry} className="flex-1" disabled={!selectedEmotion || !newContent.trim()}>
-                Save Entry
-              </Button>
-              <Button variant="ghost" onClick={handleCancelEntry}>
-                Cancel
-              </Button>
-            </div>
+            </button>
+            {isRecording && (
+              <div className="absolute top-3 right-3 flex items-center gap-2 px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+                <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                Recording...
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="primary" onClick={handleSaveEntry} className="flex-1">
+              Save Entry
+            </Button>
+            <Button variant="ghost" onClick={handleCancelEntry}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}
 
       {/* Past Entries */}
-      {currentStep === "select" && (
-        <div className="space-y-3 animate-slide-up" style={{ animationDelay: "100ms" }}>
-          <h2 className="font-semibold text-foreground">Past Entries</h2>
-          {entries.length === 0 ? (
-            <div className="bg-card rounded-xl shadow-card p-8 text-center">
-              <Book className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No entries yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Start journalling to track your emotional spending</p>
-            </div>
-          ) : (
-            entries.map((entry) => (
-              <div key={entry.id} className="bg-card rounded-xl shadow-card p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">{entry.moodEmoji}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">{entry.date}</span>
-                    </div>
-                    <span className="text-xs text-primary font-medium">{entry.emotion}</span>
+      <div className="space-y-3 animate-slide-up" style={{ animationDelay: "100ms" }}>
+        <h2 className="font-semibold text-foreground">Past Entries</h2>
+        {entries.length === 0 ? (
+          <div className="bg-card rounded-xl shadow-card p-8 text-center">
+            <Book className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No entries yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Start journalling to track your emotional spending</p>
+          </div>
+        ) : (
+          entries.map((entry) => (
+            <div key={entry.id} className="bg-card rounded-xl shadow-card p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl">{entry.moodEmoji}</span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">{entry.date}</span>
                   </div>
+                  <span className="text-xs text-primary font-medium">{entry.mood}</span>
                 </div>
-                <p className="text-sm text-foreground leading-relaxed line-clamp-3">
-                  {entry.content}
-                </p>
               </div>
-            ))
-          )}
-        </div>
-      )}
+              <p className="text-sm text-foreground leading-relaxed line-clamp-3">
+                {entry.content}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 };

@@ -1,55 +1,169 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery, useMutation, useAction } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import Navbar from "@/components/layout/Navbar";
 import FloatingChatButton from "@/components/layout/FloatingChatButton";
 import PaymentsPage from "@/components/features/PaymentsPage";
-import TransactionsPage, { type Transaction } from "@/components/features/TransactionsPage";
+import TransactionsPage from "@/components/features/TransactionsPage";
 import RytMindDashboard from "@/components/features/RytMindDashboard";
+import InsightsPage from "@/components/features/InsightsPage";
 import ReceiptUploadModal from "@/components/features/ReceiptUploadModal";
-import ManualEntryModal from "@/components/features/ManualEntryModal";
 import JournalModal from "@/components/features/JournalModal";
 import SpendingAnalysisPage from "@/components/features/SpendingAnalysisPage";
 import BudgetPlannerPage from "@/components/features/BudgetPlannerPage";
 import JournallingPage from "@/components/features/JournallingPage";
 import FinancialTherapistPage from "@/components/features/FinancialTherapistPage";
-import InsightsPage from "@/components/features/InsightsPage";
 import { useToast } from "@/hooks/use-toast";
 
-const initialTransactions: Transaction[] = [
-  { id: "1", merchant: "Starbucks", date: "Dec 6, 2024", time: "10:30 AM", category: "Food", amount: -18.90, processed: true, emotion: "Impulse", emotionEmoji: "😅" },
-  { id: "2", merchant: "Lazada", date: "Dec 5, 2024", time: "8:15 PM", category: "Shopping", amount: -245.00 },
-  { id: "3", merchant: "Grab", date: "Dec 5, 2024", time: "6:00 PM", category: "Transport", amount: -25.50, processed: true, emotion: "Necessary", emotionEmoji: "✅" },
-  { id: "4", merchant: "Netflix", date: "Dec 4, 2024", time: "12:00 AM", category: "Entertainment", amount: -44.90 },
-  { id: "5", merchant: "Tenaga Nasional", date: "Dec 3, 2024", time: "2:00 PM", category: "Bills", amount: -186.00, processed: true, emotion: "Necessary", emotionEmoji: "✅" },
-  { id: "6", merchant: "McDonald's", date: "Dec 2, 2024", time: "1:30 PM", category: "Food", amount: -32.40 },
-  { id: "7", merchant: "Uniqlo", date: "Dec 1, 2024", time: "4:45 PM", category: "Shopping", amount: -189.00, processed: true, emotion: "Planned", emotionEmoji: "📝" },
-];
+// Map Convex transaction to UI Transaction format
+interface UITransaction {
+  id: string;
+  merchant: string;
+  date: string;
+  time: string;
+  category: string;
+  amount: number;
+  processed?: boolean;
+  emotion?: string;
+  emotionEmoji?: string;
+}
 
-type ActiveView = "payments" | "transactions" | "rytmind" | "insights" | "analysis" | "budget" | "journalling" | "therapist";
+type ActiveView = "payments" | "transactions" | "rytmind" | "analysis" | "budget" | "journalling" | "therapist" | "insights";
+type PeriodType = "7days" | "14days" | "30days";
+
+// Staleness thresholds based on period type (in hours)
+const STALE_THRESHOLDS: Record<PeriodType, number> = {
+  "7days": 7 * 24,    // 7 days
+  "14days": 14 * 24,  // 2 weeks
+  "30days": 30 * 24,  // 1 month
+};
 
 const Index = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"payments" | "transactions" | "rytmind" | "insights">("payments");
   const [activeView, setActiveView] = useState<ActiveView>("payments");
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
   const [receiptModalId, setReceiptModalId] = useState<string | null>(null);
-  const [manualEntryModalId, setManualEntryModalId] = useState<string | null>(null);
   const [journalModalId, setJournalModalId] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>("7days");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Track which periods we've already auto-refreshed to avoid loops
+  const autoRefreshedPeriods = useRef<Set<string>>(new Set());
+
+  // Convex queries
+  const convexTransactions = useQuery(api.transactions.list);
+  const insight = useQuery(api.insights.getLatest, { periodType: selectedPeriod });
+
+  // Debug logging
+  console.log("Transactions:", convexTransactions?.length || 0);
+  console.log("Insight:", insight);
+  console.log("Selected Period:", selectedPeriod);
+  
+  // Convex mutations and actions
+  const createTransaction = useMutation(api.transactions.create);
+  const updateEmotion = useMutation(api.transactions.updateEmotion);
+  const seedData = useMutation(api.seed.seedData);
+  
+  // Action to generate analysis - calls Lindy AI (Convex is now deployed to cloud!)
+  const generateAnalysis = useAction(api.lindy.triggerAnalysis);
+
+  // Refresh/generate analysis for current period (defined first with useCallback)
+  const handleRefreshAnalysis = useCallback(async (showToast = true) => {
+    setIsRefreshing(true);
+    try {
+      // This uses local generation for now
+      // Replace with api.lindy.triggerAnalysis to use actual Lindy
+      await generateAnalysis({ periodType: selectedPeriod });
+      if (showToast) {
+        toast({
+          title: "Analysis Generated",
+          description: `Insights for ${selectedPeriod === "7days" ? "last 7 days" : selectedPeriod === "14days" ? "last 2 weeks" : "last month"} updated.`,
+        });
+      }
+    } catch (error) {
+      if (showToast) {
+        toast({
+          title: "Error",
+          description: "Failed to generate analysis. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [generateAnalysis, selectedPeriod, toast]);
+
+  // Seed data on first load if empty
+  useEffect(() => {
+    if (convexTransactions && convexTransactions.length === 0) {
+      seedData();
+    }
+  }, [convexTransactions, seedData]);
+
+  // Auto-generate analysis when insight is missing or stale
+  useEffect(() => {
+    // Only auto-refresh when on insights page
+    if (activeView !== "insights") return;
+    
+    // Don't auto-refresh if already refreshing
+    if (isRefreshing) return;
+    
+    // insight is undefined while loading, wait for query to complete
+    if (insight === undefined) return;
+    
+    // Create a unique key for this period to track auto-refresh
+    const periodKey = `${selectedPeriod}-${insight?.generatedAt || 'null'}`;
+    
+    // Check if we've already auto-refreshed for this exact state
+    if (autoRefreshedPeriods.current.has(periodKey)) return;
+    
+    // Check if insight is missing or stale (threshold matches the period)
+    const staleThreshold = STALE_THRESHOLDS[selectedPeriod];
+    const isStale = insight && 
+      (Date.now() - insight.generatedAt) / (1000 * 60 * 60) > staleThreshold;
+    
+    if (insight === null || isStale) {
+      // Mark this period as auto-refreshed
+      autoRefreshedPeriods.current.add(periodKey);
+      // Auto-trigger analysis generation (silent - no toast for auto-refresh)
+      handleRefreshAnalysis(false);
+    }
+  }, [activeView, selectedPeriod, insight, isRefreshing, handleRefreshAnalysis]);
+
+  // Clear auto-refresh tracking when period changes
+  useEffect(() => {
+    autoRefreshedPeriods.current.clear();
+  }, [selectedPeriod]);
+
+  // Transform Convex transactions to UI format
+  const transactions: UITransaction[] = (convexTransactions || []).map((t) => ({
+    id: t._id,
+    merchant: t.merchant,
+    date: t.date,
+    time: t.time,
+    category: t.category,
+    amount: t.amount,
+    processed: t.processed,
+    emotion: t.emotion,
+    emotionEmoji: t.emotionEmoji,
+  }));
 
   const handleTabChange = (tab: "payments" | "transactions" | "rytmind" | "insights") => {
     setActiveTab(tab);
     setActiveView(tab);
   };
 
-  const handlePaymentSuccess = (recipient: string, amount: number) => {
-    const newTransaction: Transaction = {
-      id: Date.now().toString(),
+  const handlePaymentSuccess = async (recipient: string, amount: number) => {
+    const now = new Date();
+    await createTransaction({
       merchant: recipient,
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+      date: now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      time: now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+      timestamp: now.getTime(),
       category: "Shopping",
       amount: -amount,
-    };
-    setTransactions((prev) => [newTransaction, ...prev]);
+    });
     handleTabChange("transactions");
     toast({
       title: "Payment Complete",
@@ -57,59 +171,44 @@ const Index = () => {
     });
   };
 
-  const handleReceiptComplete = (transactionId: string, items: Array<{ name: string; price: number; category: string }>) => {
-    if (items.length === 0) {
-      // If no items extracted, just mark as processed
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === transactionId
-            ? { ...t, processed: true, emotion: "Analyzed", emotionEmoji: "🔍" }
-            : t
-        )
-      );
+  const handleReceiptComplete = async (transactionId: string) => {
+    try {
+      await updateEmotion({
+        id: transactionId as Id<"transactions">,
+        emotion: "Analyzed",
+        emotionEmoji: "🔍",
+      });
       toast({
         title: "Receipt Analyzed",
         description: "Your spending insight has been recorded.",
       });
-      return;
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to analyze receipt.",
+        variant: "destructive",
+      });
     }
-
-    // Find the transaction and update it with items stored in the transaction
-    // Keep the original amount unchanged, just store items for breakdown
-    setTransactions((prev) =>
-      prev.map((t) =>
-        t.id === transactionId
-          ? { 
-              ...t, 
-              processed: true, 
-              emotion: "Analyzed", 
-              emotionEmoji: "🔍",
-              category: items[0].category,
-              // Keep original amount - don't change it
-              items: items, // Store items in transaction for breakdown display
-            }
-          : t
-      )
-    );
-
-    toast({
-      title: "Receipt Analyzed",
-      description: `${items.length} item(s) extracted and categorized successfully.`,
-    });
   };
 
-  const handleJournalComplete = (transactionId: string) => {
-    setTransactions((prev) =>
-      prev.map((t) =>
-        t.id === transactionId
-          ? { ...t, processed: true, emotion: "Reflected", emotionEmoji: "💭" }
-          : t
-      )
-    );
-    toast({
-      title: "Journal Saved",
-      description: "Your emotional insight has been recorded.",
-    });
+  const handleJournalComplete = async (transactionId: string) => {
+    try {
+      await updateEmotion({
+        id: transactionId as Id<"transactions">,
+        emotion: "Reflected",
+        emotionEmoji: "💭",
+      });
+      toast({
+        title: "Journal Saved",
+        description: "Your emotional insight has been recorded.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save journal.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleFeatureClick = (feature: string) => {
@@ -126,6 +225,9 @@ const Index = () => {
       case "budget":
         setActiveView("budget");
         break;
+      case "insights":
+        setActiveView("insights");
+        break;
       default:
         toast({
           title: feature.charAt(0).toUpperCase() + feature.slice(1),
@@ -136,6 +238,10 @@ const Index = () => {
 
   const handleBackToRytMind = () => {
     setActiveView("rytmind");
+  };
+
+  const handlePeriodChange = (period: PeriodType) => {
+    setSelectedPeriod(period);
   };
 
   // Determine if we should show the navbar (hide for sub-pages)
@@ -155,7 +261,7 @@ const Index = () => {
           <TransactionsPage
             transactions={transactions}
             onReceiptUpload={setReceiptModalId}
-            onManualEntry={setManualEntryModalId}
+            onManualEntry={setJournalModalId}
           />
         )}
 
@@ -164,12 +270,19 @@ const Index = () => {
             transactions={transactions}
             onFeatureClick={handleFeatureClick}
             onReceiptUpload={setReceiptModalId}
-            onManualEntry={setManualEntryModalId}
+            onManualEntry={setJournalModalId}
           />
         )}
 
         {activeView === "insights" && (
-          <InsightsPage transactions={transactions} />
+          <InsightsPage
+            insight={insight}
+            isLoading={insight === undefined}
+            onPeriodChange={handlePeriodChange}
+            onRefresh={() => handleRefreshAnalysis(true)}
+            isRefreshing={isRefreshing}
+            selectedPeriod={selectedPeriod}
+          />
         )}
 
         {activeView === "analysis" && (
@@ -181,7 +294,7 @@ const Index = () => {
         )}
 
         {activeView === "journalling" && (
-          <JournallingPage onBack={handleBackToRytMind} transactions={transactions} />
+          <JournallingPage onBack={handleBackToRytMind} />
         )}
 
         {activeView === "therapist" && (
@@ -197,17 +310,6 @@ const Index = () => {
           transactionId={receiptModalId}
           onClose={() => setReceiptModalId(null)}
           onComplete={handleReceiptComplete}
-        />
-      )}
-
-      {manualEntryModalId && (
-        <ManualEntryModal
-          transactionId={manualEntryModalId}
-          onClose={() => setManualEntryModalId(null)}
-          onComplete={handleReceiptComplete}
-          initialItems={
-            transactions.find(t => t.id === manualEntryModalId)?.items
-          }
         />
       )}
 

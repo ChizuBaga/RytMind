@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Book, BarChart3, Headphones, Target, Camera, Pen, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from "lucide-react";
+import { Book, Headphones, Target, Camera, Pen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "./TransactionsPage";
@@ -24,23 +23,7 @@ const spendingData = [
 ];
 
 const RytMindDashboard = ({ transactions, onFeatureClick, onReceiptUpload, onManualEntry }: RytMindDashboardProps) => {
-  const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set());
-  const totalSpending = 1890.50;
-  const percentageChange = 2.1;
   const pendingTransactions = transactions.filter(t => !t.processed).slice(0, 3);
-  const processedTransactions = transactions.filter(t => t.processed && t.items && t.items.length > 0).slice(0, 5);
-
-  const toggleExpand = (transactionId: string) => {
-    setExpandedTransactions((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(transactionId)) {
-        newSet.delete(transactionId);
-      } else {
-        newSet.add(transactionId);
-      }
-      return newSet;
-    });
-  };
 
   return (
     <div className="flex-1 px-4 py-6 space-y-6">
@@ -58,13 +41,17 @@ const RytMindDashboard = ({ transactions, onFeatureClick, onReceiptUpload, onMan
 
       {/* Feature Buttons Grid */}
       <div className="grid grid-cols-2 gap-3 animate-slide-up" style={{ animationDelay: "100ms" }}>
-        {features.map((feature) => {
+        {features.map((feature, index) => {
           const Icon = feature.icon;
+          const isLastOdd = features.length % 2 === 1 && index === features.length - 1;
           return (
             <button
               key={feature.id}
               onClick={() => onFeatureClick(feature.id)}
-              className="bg-card rounded-xl shadow-card p-4 flex flex-col items-center gap-3 hover:shadow-elevated transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              className={cn(
+                "bg-card rounded-xl shadow-card p-4 flex flex-col items-center gap-3 hover:shadow-elevated transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+                isLastOdd && "col-span-2 w-[calc(50%-0.375rem)] mx-auto"
+              )}
             >
               <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", feature.color)}>
                 <Icon className="w-6 h-6" />

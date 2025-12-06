@@ -120,16 +120,13 @@ const FinancialTherapistPage = ({ onBack }: FinancialTherapistPageProps) => {
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div className="w-10 h-10 rounded-full gradient-ryt flex items-center justify-center shadow-lg relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 animate-pulse"></div>
-          <Bot className="w-5 h-5 text-primary-foreground relative z-10" />
+        <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center">
+          <Bot className="w-5 h-5 text-primary-foreground" />
         </div>
         <div className="flex-1">
-          <h1 className="font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Financial Therapist
-          </h1>
+          <h1 className="font-semibold text-foreground">Financial Therapist</h1>
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
             <span className="text-xs text-muted-foreground">AI-powered • Voice enabled</span>
           </div>
         </div>
