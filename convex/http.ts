@@ -120,13 +120,13 @@ http.route({
 
       // Calculate summary stats
       const totalSpending = transactions.reduce(
-        (sum, t) => sum + Math.abs(t.amount),
+        (sum: number, t: { amount: number }) => sum + Math.abs(t.amount),
         0
       );
 
       // Category breakdown
       const categoryMap: Record<string, number> = {};
-      transactions.forEach((t) => {
+      transactions.forEach((t: { category: string; amount: number }) => {
         const cat = t.category || "Others";
         categoryMap[cat] = (categoryMap[cat] || 0) + Math.abs(t.amount);
       });
@@ -147,7 +147,7 @@ http.route({
           totalSpending,
           transactionCount: transactions.length,
           categoryBreakdown,
-          transactions: transactions.map((t) => ({
+          transactions: transactions.map((t: { merchant: string; date: string; time: string; category: string; amount: number; emotion?: string }) => ({
             merchant: t.merchant,
             date: t.date,
             time: t.time,
@@ -155,7 +155,7 @@ http.route({
             amount: t.amount,
             emotion: t.emotion,
           })),
-          journalEntries: journalEntries.map((j) => ({
+          journalEntries: journalEntries.map((j: { content: string; mood: string; date: string }) => ({
             content: j.content,
             mood: j.mood,
             date: j.date,

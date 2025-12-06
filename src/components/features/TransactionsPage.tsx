@@ -7,28 +7,19 @@ export interface Transaction {
   merchant: string;
   date: string;
   time: string;
-  category: string;
+  category?: string;
   amount: number;
   processed?: boolean;
   emotion?: string;
   emotionEmoji?: string;
+  items?: Array<{ name: string; price: number; category: string }>;
 }
 
-interface TransactionsPageProps {
-  transactions: Transaction[];
-  onReceiptUpload: (transactionId: string) => void;
-  onManualEntry: (transactionId: string) => void;
-}
 
-const categoryColors: Record<string, string> = {
-  Food: "bg-accent/10 text-accent",
-  Shopping: "bg-primary/10 text-primary",
-  Transport: "bg-secondary/10 text-secondary-foreground",
-  Entertainment: "bg-destructive/10 text-destructive",
-  Bills: "bg-muted text-muted-foreground",
-};
 
-const TransactionsPage = ({ transactions, onReceiptUpload, onManualEntry }: TransactionsPageProps) => {
+
+
+const TransactionsPage = ({ transactions }: { transactions: Transaction[] }) => {
   return (
     <div className="flex-1 px-4 py-6">
       {/* Header */}
@@ -55,14 +46,7 @@ const TransactionsPage = ({ transactions, onReceiptUpload, onManualEntry }: Tran
               </div>
 
               {/* Center: Category Tag */}
-              <span
-                className={cn(
-                  "px-2.5 py-1 rounded-full text-xs font-medium shrink-0",
-                  categoryColors[transaction.category] || "bg-muted text-muted-foreground"
-                )}
-              >
-                {transaction.category}
-              </span>
+              
 
               {/* Right: Amount */}
               <div className="text-right shrink-0">
@@ -75,35 +59,7 @@ const TransactionsPage = ({ transactions, onReceiptUpload, onManualEntry }: Tran
               </div>
 
               {/* RytMind Actions */}
-              <div className="flex flex-col gap-1 shrink-0">
-                {transaction.processed ? (
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-secondary/10 rounded-lg">
-                    <span className="text-sm">{transaction.emotionEmoji}</span>
-                    <span className="text-xs font-medium text-secondary-foreground">{transaction.emotion}</span>
-                  </div>
-                ) : (
-                  <>
-                    <Button
-                      variant="action"
-                      size="sm"
-                      onClick={() => onReceiptUpload(transaction.id)}
-                      className="h-7 px-2 text-xs"
-                    >
-                      <Camera className="w-3 h-3" />
-                      <span>Receipt</span>
-                    </Button>
-                    <Button
-                      variant="action"
-                      size="sm"
-                      onClick={() => onManualEntry(transaction.id)}
-                      className="h-7 px-2 text-xs"
-                    >
-                      <Pen className="w-3 h-3" />
-                      <span>Manual</span>
-                    </Button>
-                  </>
-                )}
-              </div>
+              
             </div>
           </div>
         ))}

@@ -50,13 +50,13 @@ export const triggerAnalysis = action({
 
     // Calculate stats
     const totalSpending = transactions.reduce(
-      (sum, t) => sum + Math.abs(t.amount),
+      (sum: number, t: { amount: number }) => sum + Math.abs(t.amount),
       0
     );
 
     // Category breakdown
     const categoryMap: Record<string, number> = {};
-    transactions.forEach((t) => {
+    transactions.forEach((t: { category: string; amount: number }) => {
       const cat = t.category || "Others";
       categoryMap[cat] = (categoryMap[cat] || 0) + Math.abs(t.amount);
     });
@@ -77,7 +77,7 @@ export const triggerAnalysis = action({
       totalSpending,
       transactionCount: transactions.length,
       categoryBreakdown,
-      transactions: transactions.map((t) => ({
+      transactions: transactions.map((t: { merchant: string; date: string; time: string; category: string; amount: number; emotion?: string }) => ({
         merchant: t.merchant,
         date: t.date,
         time: t.time,
@@ -85,7 +85,7 @@ export const triggerAnalysis = action({
         amount: t.amount,
         emotion: t.emotion,
       })),
-      journalEntries: journalEntries.map((j) => ({
+      journalEntries: journalEntries.map((j: { content: string; mood: string; date: string }) => ({
         content: j.content,
         mood: j.mood,
         date: j.date,
@@ -159,7 +159,7 @@ export const generateLocalAnalysis = action({
   args: {
     periodType: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ success: boolean; totalSpending: number; transactionCount: number }> => {
     const { periodType } = args;
     
     const now = Date.now();
@@ -186,24 +186,24 @@ export const generateLocalAnalysis = action({
     }
 
     // Fetch data
-    const transactions = await ctx.runQuery(api.transactions.listByTimeRange, {
+    const transactions: Array<{ amount: number; category: string }> = await ctx.runQuery(api.transactions.listByTimeRange, {
       startTimestamp,
       endTimestamp: now,
     });
 
-    const journalEntries = await ctx.runQuery(api.journalEntries.listByTimeRange, {
+    const journalEntries: Array<{ mood: string }> = await ctx.runQuery(api.journalEntries.listByTimeRange, {
       startTimestamp,
       endTimestamp: now,
     });
 
     // Calculate stats
-    const totalSpending = transactions.reduce(
-      (sum, t) => sum + Math.abs(t.amount),
+    const totalSpending: number = transactions.reduce(
+      (sum: number, t: { amount: number }) => sum + Math.abs(t.amount),
       0
     );
 
     const categoryMap: Record<string, number> = {};
-    transactions.forEach((t) => {
+    transactions.forEach((t: { category: string; amount: number }) => {
       const cat = t.category || "Others";
       categoryMap[cat] = (categoryMap[cat] || 0) + Math.abs(t.amount);
     });
@@ -218,7 +218,7 @@ export const generateLocalAnalysis = action({
 
     // Generate simple analysis (replace with actual Lindy call in production)
     const topCategory = categoryBreakdown[0];
-    const journalMoods = journalEntries.map(j => j.mood).join(", ");
+    const journalMoods = journalEntries.map((j: { mood: string }) => j.mood).join(", ");
     
     const aiAnalysis = {
       summary: `Over ${periodLabel}, you spent RM ${totalSpending.toFixed(2)} across ${transactions.length} transactions. ${topCategory ? `${topCategory.category} was your biggest expense at RM ${topCategory.amount.toFixed(2)} (${topCategory.percentage.toFixed(0)}%).` : ""}\n\n${journalEntries.length > 0 ? `Your journal entries show moods including: ${journalMoods}. ` : ""}Based on your spending patterns, most transactions happen during meal times and evenings.`,

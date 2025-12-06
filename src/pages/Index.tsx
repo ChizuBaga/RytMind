@@ -294,7 +294,7 @@ const Index = () => {
         )}
 
         {activeView === "journalling" && (
-          <JournallingPage onBack={handleBackToRytMind} />
+          <JournallingPage onBack={handleBackToRytMind} transactions={transactions} />
         )}
 
         {activeView === "therapist" && (

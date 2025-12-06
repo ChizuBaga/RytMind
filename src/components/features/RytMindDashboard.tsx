@@ -1,4 +1,5 @@
-import { Book, Headphones, Target, Camera, Pen } from "lucide-react";
+import { useState } from "react";
+import { Book, Headphones, Target, Camera, Pen, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "./TransactionsPage";
@@ -23,7 +24,21 @@ const spendingData = [
 ];
 
 const RytMindDashboard = ({ transactions, onFeatureClick, onReceiptUpload, onManualEntry }: RytMindDashboardProps) => {
+  const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set());
   const pendingTransactions = transactions.filter(t => !t.processed).slice(0, 3);
+  const processedTransactions = transactions.filter(t => t.processed && t.items && t.items.length > 0).slice(0, 5);
+
+  const toggleExpand = (transactionId: string) => {
+    setExpandedTransactions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(transactionId)) {
+        newSet.delete(transactionId);
+      } else {
+        newSet.add(transactionId);
+      }
+      return newSet;
+    });
+  };
 
   return (
     <div className="flex-1 px-4 py-6 space-y-6">

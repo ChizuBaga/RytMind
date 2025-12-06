@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Book, Plus, Calendar, Sparkles, ChevronRight, Mic, MicOff } from "lucide-react";
+import { ArrowLeft, Book, Plus, Calendar, Sparkles, ChevronRight, Mic, MicOff, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { Transaction } from "./TransactionsPage";
 
 interface JournallingPageProps {
   onBack: () => void;
+  transactions?: Transaction[];
 }
 
 interface JournalEntry {
@@ -41,7 +43,14 @@ const writingPrompts = [
   "When do I tend to spend emotionally?",
 ];
 
-const JournallingPage = ({ onBack }: JournallingPageProps) => {
+const emotions = [
+  { id: "happy", label: "Happy", emoji: "😊" },
+  { id: "anxious", label: "Anxious", emoji: "😰" },
+  { id: "regretful", label: "Regretful", emoji: "😔" },
+  { id: "content", label: "Content", emoji: "😌" },
+];
+
+const JournallingPage = ({ onBack, transactions = [] }: JournallingPageProps) => {
   const [entries, setEntries] = useState<JournalEntry[]>(sampleEntries);
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [newContent, setNewContent] = useState("");
@@ -49,6 +58,43 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  
+  // Transaction selection state
+  const [currentStep, setCurrentStep] = useState<"select" | "entry">("select");
+  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+  const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
+  
+  // Group transactions by date
+  const transactionsByDate = transactions.reduce((acc, transaction) => {
+    const date = transaction.date;
+    if (!acc[date]) {
+      acc[date] = [];
+    }
+    acc[date].push(transaction);
+    return acc;
+  }, {} as Record<string, Transaction[]>);
+  
+  const toggleTransactionSelection = (transactionId: string) => {
+    setSelectedTransactions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(transactionId)) {
+        newSet.delete(transactionId);
+      } else {
+        newSet.add(transactionId);
+      }
+      return newSet;
+    });
+  };
+  
+  const handleContinueFromSelection = () => {
+    if (selectedTransactions.size > 0) {
+      setCurrentStep("entry");
+    }
+  };
+  
+  const getSelectedTransactionsList = () => {
+    return transactions.filter(t => selectedTransactions.has(t.id));
+  };
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -130,7 +176,7 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
   };
 
   const handleSaveEntry = () => {
-    if (!newContent.trim()) return;
+    if (!newContent.trim() || !selectedEmotion) return;
     
     // Stop recording if active
     if (isRecording && recognitionRef.current) {
@@ -138,18 +184,20 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
       setIsRecording(false);
     }
     
+    const selectedEmotionData = emotions.find(e => e.id === selectedEmotion);
     const newEntry: JournalEntry = {
       id: Date.now().toString(),
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       content: newContent,
-      mood: "Reflective",
-      moodEmoji: "💭",
+      mood: selectedEmotionData?.label || "Reflective",
+      moodEmoji: selectedEmotionData?.emoji || "💭",
     };
     
     setEntries([newEntry, ...entries]);
     setNewContent("");
-    setShowNewEntry(false);
-    setSelectedPrompt(null);
+    setSelectedEmotion(null);
+    setSelectedTransactions(new Set());
+    setCurrentStep("select");
   };
 
   const handleCancelEntry = () => {
@@ -169,6 +217,116 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
     setShowNewEntry(true);
   };
 
+  // If no transactions, show simple journaling
+  if (transactions.length === 0) {
+    return (
+      <div className="flex-1 px-4 py-6 space-y-6 pb-24">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-xl font-bold text-foreground">Journalling</h1>
+            <p className="text-sm text-muted-foreground">Reflect on your spending</p>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => setShowNewEntry(true)}>
+            <Plus className="w-4 h-4 mr-1" />
+            New
+          </Button>
+        </div>
+
+        {/* New Entry Form */}
+        {showNewEntry && (
+          <div className="bg-card rounded-2xl shadow-card p-5 animate-scale-in">
+            <div className="flex items-center gap-2 mb-4">
+              <Book className="w-5 h-5 text-primary" />
+              <h2 className="font-semibold text-foreground">New Entry</h2>
+            </div>
+            <div className="relative mb-4">
+              <Textarea
+                value={newContent}
+                onChange={(e) => setNewContent(e.target.value)}
+                placeholder="Start writing your thoughts here... 
+
+How did today's spending make you feel? What emotions were behind your purchases? Are there patterns you're noticing?"
+                className="min-h-[200px] resize-none text-base leading-relaxed pr-12"
+              />
+              <button
+                onClick={toggleRecording}
+                disabled={!isSupported}
+                className={`absolute bottom-3 right-3 p-2 rounded-full transition-all ${
+                  isRecording
+                    ? "bg-destructive text-destructive-foreground animate-pulse"
+                    : isSupported
+                    ? "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                    : "bg-muted/50 text-muted-foreground/50 cursor-not-allowed"
+                }`}
+                title={
+                  !isSupported
+                    ? "Voice input not supported in this browser"
+                    : isRecording
+                    ? "Stop recording"
+                    : "Start voice input"
+                }
+              >
+                {isRecording ? (
+                  <MicOff className="w-5 h-5" />
+                ) : (
+                  <Mic className="w-5 h-5" />
+                )}
+              </button>
+              {isRecording && (
+                <div className="absolute top-3 right-3 flex items-center gap-2 px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+                  <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                  Recording...
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="primary" onClick={handleSaveEntry} className="flex-1">
+                Save Entry
+              </Button>
+              <Button variant="ghost" onClick={handleCancelEntry}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Past Entries */}
+        <div className="space-y-3 animate-slide-up" style={{ animationDelay: "100ms" }}>
+          <h2 className="font-semibold text-foreground">Past Entries</h2>
+          {entries.length === 0 ? (
+            <div className="bg-card rounded-xl shadow-card p-8 text-center">
+              <Book className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No entries yet</p>
+              <p className="text-sm text-muted-foreground mt-1">Start journalling to track your emotional spending</p>
+            </div>
+          ) : (
+            entries.map((entry) => (
+              <div key={entry.id} className="bg-card rounded-xl shadow-card p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl">{entry.moodEmoji}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{entry.date}</span>
+                    </div>
+                    <span className="text-xs text-primary font-medium">{entry.mood}</span>
+                  </div>
+                </div>
+                <p className="text-sm text-foreground leading-relaxed line-clamp-3">
+                  {entry.content}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 px-4 py-6 space-y-6 pb-24">
       {/* Header */}
@@ -180,10 +338,6 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
           <h1 className="text-xl font-bold text-foreground">Journalling</h1>
           <p className="text-sm text-muted-foreground">Reflect on your spending</p>
         </div>
-        <Button variant="primary" size="sm" onClick={() => setShowNewEntry(true)}>
-          <Plus className="w-4 h-4 mr-1" />
-          New
-        </Button>
       </div>
 
       {/* Step 1: Transaction Selection */}
@@ -409,6 +563,76 @@ const JournallingPage = ({ onBack }: JournallingPageProps) => {
                 })}
               </div>
             </div>
+
+            {/* Journal Text Area */}
+            <div className="mb-4">
+              <label className="text-sm font-medium text-foreground mb-3 block">
+                Write your thoughts *
+              </label>
+              <div className="relative">
+                <Textarea
+                  value={newContent}
+                  onChange={(e) => setNewContent(e.target.value)}
+                  placeholder={writingPrompts[Math.floor(Math.random() * writingPrompts.length)]}
+                  className="min-h-[200px] resize-none text-base leading-relaxed pr-12"
+                />
+                <button
+                  onClick={toggleRecording}
+                  disabled={!isSupported}
+                  className={`absolute bottom-3 right-3 p-2 rounded-full transition-all ${
+                    isRecording
+                      ? "bg-destructive text-destructive-foreground animate-pulse"
+                      : isSupported
+                      ? "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                      : "bg-muted/50 text-muted-foreground/50 cursor-not-allowed"
+                  }`}
+                  title={
+                    !isSupported
+                      ? "Voice input not supported in this browser"
+                      : isRecording
+                      ? "Stop recording"
+                      : "Start voice input"
+                  }
+                >
+                  {isRecording ? (
+                    <MicOff className="w-5 h-5" />
+                  ) : (
+                    <Mic className="w-5 h-5" />
+                  )}
+                </button>
+                {isRecording && (
+                  <div className="absolute top-3 right-3 flex items-center gap-2 px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+                    <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                    Recording...
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setCurrentStep("select");
+                  setNewContent("");
+                  setSelectedEmotion(null);
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSaveEntry}
+                disabled={!selectedEmotion || !newContent.trim()}
+                className="flex-1"
+              >
+                Save Journal
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Entry Form */}
       {showNewEntry && (
