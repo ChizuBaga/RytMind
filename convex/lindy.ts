@@ -4,9 +4,7 @@ import { api } from "./_generated/api";
 
 // Your Lindy webhook URLs - one for each period
 const LINDY_URLS: Record<string, string> = {
-  "7days": "https://public.lindy.ai/api/v1/webhooks/lindy/f395ecf9-f07b-4005-bd26-31662f9ee4a7",
-  "14days": "https://public.lindy.ai/api/v1/webhooks/lindy/1b308af1-e69f-4c3c-a3c0-24ec9f68fbc0",
-  "30days": "https://public.lindy.ai/api/v1/webhooks/lindy/56f4e405-c6ac-4538-8e8f-4a679c00215d",
+
 };
 
 // Action to trigger Lindy analysis for a specific period
